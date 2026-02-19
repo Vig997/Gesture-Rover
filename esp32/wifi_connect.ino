@@ -1,12 +1,12 @@
 #include <WiFi.h>
 
 // Set your Wi-Fi credentials directly here.
-static const char* ssid = "Presus"
+static const char* ssid = "Presus";
 static const char* password = "password321";
 static const uint16_t TCP_PORT = 12345;
 
 // ESP32 UART2 pins (edit if your board wiring is different).
-static const int ESP32_UART2_RX = 14;
+static const int ESP32_UART2_RX = 14; 
 static const int ESP32_UART2_TX = 15;
 
 static const size_t PACKET_LEN = 8;  // RL + SSS + RR + SSS (ASCII digits)
