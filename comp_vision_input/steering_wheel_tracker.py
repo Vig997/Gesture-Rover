@@ -64,8 +64,8 @@ def create_landmarker(model_path: str, num_hands: int):
         running_mode=vision.RunningMode.VIDEO,
         num_hands=num_hands,
         min_hand_detection_confidence=0.65,
-        min_hand_presence_confidence=0.65,
-        min_tracking_confidence=0.65,
+        min_hand_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
     )
     return vision.HandLandmarker.create_from_options(options)
 
