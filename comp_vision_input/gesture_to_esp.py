@@ -34,8 +34,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--host",
-        default="172.20.10.5",
-        help="ESP32 IP/hostname (default: 172.20.10.5)",
+        default="172.20.10.6",
+        help="ESP32 IP/hostname (default: 172.20.10.6)",
     )
     ap.add_argument("--port", type=int, default=12345, help="ESP32 WiFiServer port (default: 12345)")
     ap.add_argument("--camera", type=int, default=0, help="Webcam index (default: 0)")
