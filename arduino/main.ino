@@ -7,14 +7,19 @@ static const size_t PACKET_LEN = 8;
 static const bool LOG_PACKETS = true;
 static const unsigned long LOG_PACKET_EVERY_MS = 200;
 
-// Pins from hardware.MD
-static const uint8_t LEFT_PWM_PIN = 3;
-static const uint8_t LEFT_FWD_PIN = 22;
-static const uint8_t LEFT_REV_PIN = 23;
+struct WheelPins {
+  uint8_t pwm;
+  uint8_t fwd;
+  uint8_t rev;
+};
 
-static const uint8_t RIGHT_PWM_PIN = 2;
-static const uint8_t RIGHT_FWD_PIN = 24;
-static const uint8_t RIGHT_REV_PIN = 25;
+// Pins from WHEELPINS.md
+// Right side wheels
+static const WheelPins F_RIGHT = {3, 22, 23};
+static const WheelPins B_RIGHT = {2, 24, 25};
+// Left side wheels
+static const WheelPins F_LEFT = {4, 32, 33};
+static const WheelPins B_LEFT = {5, 30, 31};
 
 unsigned long lastPacketMs = 0;
 unsigned long lastPacketLogMs = 0;
@@ -28,28 +33,39 @@ int parseSpeed3(const char* p) {
   return v;
 }
 
-void applyWheel(uint8_t pwmPin, uint8_t fwdPin, uint8_t revPin, bool reverse, int speed) {
+void applyWheel(const WheelPins& wheel, bool reverse, int speed) {
   if (speed <= 0) {
-    digitalWrite(fwdPin, LOW);
-    digitalWrite(revPin, LOW);
-    analogWrite(pwmPin, 0);
+    digitalWrite(wheel.fwd, LOW);
+    digitalWrite(wheel.rev, LOW);
+    analogWrite(wheel.pwm, 0);
     return;
   }
 
   if (reverse) {
-    digitalWrite(fwdPin, LOW);
-    digitalWrite(revPin, HIGH);
+    digitalWrite(wheel.fwd, LOW);
+    digitalWrite(wheel.rev, HIGH);
   } else {
-    digitalWrite(fwdPin, HIGH);
-    digitalWrite(revPin, LOW);
+    digitalWrite(wheel.fwd, HIGH);
+    digitalWrite(wheel.rev, LOW);
   }
 
-  analogWrite(pwmPin, speed);
+  analogWrite(wheel.pwm, speed);
+}
+
+void applySide(const WheelPins& frontWheel, const WheelPins& backWheel, bool reverse, int speed) {
+  applyWheel(frontWheel, reverse, speed);
+  applyWheel(backWheel, reverse, speed);
+}
+
+void initWheelPins(const WheelPins& wheel) {
+  pinMode(wheel.pwm, OUTPUT);
+  pinMode(wheel.fwd, OUTPUT);
+  pinMode(wheel.rev, OUTPUT);
 }
 
 void stopAll() {
-  applyWheel(LEFT_PWM_PIN, LEFT_FWD_PIN, LEFT_REV_PIN, false, 0);
-  applyWheel(RIGHT_PWM_PIN, RIGHT_FWD_PIN, RIGHT_REV_PIN, false, 0);
+  applySide(F_LEFT, B_LEFT, false, 0);
+  applySide(F_RIGHT, B_RIGHT, false, 0);
 }
 
 void applyPacket(const char* pkt) {
@@ -59,8 +75,10 @@ void applyPacket(const char* pkt) {
   bool rightReverse = (pkt[4] == '1');
   int rightSpeed = parseSpeed3(&pkt[5]);
 
-  applyWheel(LEFT_PWM_PIN, LEFT_FWD_PIN, LEFT_REV_PIN, leftReverse, leftSpeed);
-  applyWheel(RIGHT_PWM_PIN, RIGHT_FWD_PIN, RIGHT_REV_PIN, rightReverse, rightSpeed);
+  // Packet format stays identical:
+  // left channel controls both left wheels, right channel controls both right wheels.
+  applySide(F_LEFT, B_LEFT, leftReverse, leftSpeed);
+  applySide(F_RIGHT, B_RIGHT, rightReverse, rightSpeed);
 
   unsigned long now = millis();
   if (LOG_PACKETS && (now - lastPacketLogMs >= LOG_PACKET_EVERY_MS)) {
@@ -80,12 +98,10 @@ void setup() {
   Serial.begin(115200);   // USB debug
   Serial1.begin(115200);  // ESP32 -> Mega (Mega RX1 pin 19)
 
-  pinMode(LEFT_PWM_PIN, OUTPUT);
-  pinMode(LEFT_FWD_PIN, OUTPUT);
-  pinMode(LEFT_REV_PIN, OUTPUT);
-  pinMode(RIGHT_PWM_PIN, OUTPUT);
-  pinMode(RIGHT_FWD_PIN, OUTPUT);
-  pinMode(RIGHT_REV_PIN, OUTPUT);
+  initWheelPins(F_LEFT);
+  initWheelPins(B_LEFT);
+  initWheelPins(F_RIGHT);
+  initWheelPins(B_RIGHT);
 
   stopAll();
   lastPacketMs = millis();
