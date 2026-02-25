@@ -56,10 +56,14 @@ def main() -> None:
     if cap is None:
         raise SystemExit(f"Failed to open stream at {stream_url}")
 
+    window_name = "ESP32-CAM FPV"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
     last_fps_ts = time.time()
     frame_counter = 0
     fps = 0.0
     display_scale = 1.0
+    fixed_display_size: tuple[int, int] | None = None
 
     try:
         while True:
@@ -72,6 +76,10 @@ def main() -> None:
                 if cap is None:
                     continue
                 continue
+
+            if fixed_display_size is None:
+                fixed_display_size = (frame.shape[1], frame.shape[0])
+                cv2.resizeWindow(window_name, fixed_display_size[0], fixed_display_size[1])
 
             frame_counter += 1
             now = time.time()
@@ -95,6 +103,11 @@ def main() -> None:
                     interpolation=cv2.INTER_AREA,
                 )
 
+            if fixed_display_size is not None and (
+                frame.shape[1] != fixed_display_size[0] or frame.shape[0] != fixed_display_size[1]
+            ):
+                frame = cv2.resize(frame, fixed_display_size, interpolation=cv2.INTER_LINEAR)
+
             cv2.putText(
                 frame,
                 f"{stream_url} | {fps:.1f} FPS | scale {display_scale:.2f} | q quit",
@@ -105,7 +118,7 @@ def main() -> None:
                 2,
                 cv2.LINE_AA,
             )
-            cv2.imshow("ESP32-CAM FPV", frame)
+            cv2.imshow(window_name, frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
