@@ -2,6 +2,7 @@ import argparse
 import time
 
 import cv2
+import numpy as np
 
 
 DEFAULT_HOST = "172.20.10.5"  # Keep aligned with gesture_to_esp.py default.
@@ -9,6 +10,9 @@ DEFAULT_PORT = 12345          # Keep aligned with wifi_connect.ino port.
 DEFAULT_PATH = "/stream"
 MIN_DISPLAY_SCALE = 0.25
 MAX_DISPLAY_SCALE = 1.0
+STATUS_BAR_HEIGHT = 36
+DEFAULT_WINDOW_WIDTH = 960
+DEFAULT_WINDOW_HEIGHT = 540
 
 
 def build_stream_url(host: str, port: int, path: str) -> str:
@@ -23,6 +27,29 @@ def open_stream(url: str) -> cv2.VideoCapture | None:
             return cap
         cap.release()
     return None
+
+
+def fit_status_text(text: str, max_width: int, font, font_scale: float, thickness: int) -> str:
+    if max_width <= 20:
+        return ""
+    rendered, _ = cv2.getTextSize(text, font, font_scale, thickness)
+    if rendered[0] <= max_width:
+        return text
+
+    ellipsis = "..."
+    lo = 0
+    hi = len(text)
+    best = ellipsis
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        candidate = text[:mid] + ellipsis
+        size, _ = cv2.getTextSize(candidate, font, font_scale, thickness)
+        if size[0] <= max_width:
+            best = candidate
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return best
 
 
 def main() -> None:
@@ -47,6 +74,18 @@ def main() -> None:
         default=15.0,
         help="Viewer adaptation target FPS (default: 15.0)",
     )
+    parser.add_argument(
+        "--window-width",
+        type=int,
+        default=DEFAULT_WINDOW_WIDTH,
+        help=f"Display width in pixels (default: {DEFAULT_WINDOW_WIDTH})",
+    )
+    parser.add_argument(
+        "--window-height",
+        type=int,
+        default=DEFAULT_WINDOW_HEIGHT,
+        help=f"Display height in pixels (default: {DEFAULT_WINDOW_HEIGHT})",
+    )
     args = parser.parse_args()
 
     stream_url = args.url or build_stream_url(args.host, args.port, args.path)
@@ -63,7 +102,9 @@ def main() -> None:
     frame_counter = 0
     fps = 0.0
     display_scale = 1.0
-    fixed_display_size: tuple[int, int] | None = None
+    target_w = max(args.window_width, 320)
+    target_h = max(args.window_height, 240)
+    cv2.resizeWindow(window_name, target_w, target_h + STATUS_BAR_HEIGHT)
 
     try:
         while True:
@@ -76,10 +117,6 @@ def main() -> None:
                 if cap is None:
                     continue
                 continue
-
-            if fixed_display_size is None:
-                fixed_display_size = (frame.shape[1], frame.shape[0])
-                cv2.resizeWindow(window_name, fixed_display_size[0], fixed_display_size[1])
 
             frame_counter += 1
             now = time.time()
@@ -103,22 +140,43 @@ def main() -> None:
                     interpolation=cv2.INTER_AREA,
                 )
 
-            if fixed_display_size is not None and (
-                frame.shape[1] != fixed_display_size[0] or frame.shape[0] != fixed_display_size[1]
-            ):
-                frame = cv2.resize(frame, fixed_display_size, interpolation=cv2.INTER_LINEAR)
+            src_h, src_w = frame.shape[:2]
+            fit_scale = min(target_w / max(src_w, 1), target_h / max(src_h, 1))
+            fit_w = max(1, int(src_w * fit_scale))
+            fit_h = max(1, int(src_h * fit_scale))
+            resized = cv2.resize(frame, (fit_w, fit_h), interpolation=cv2.INTER_LINEAR)
 
+            frame_canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+            x0 = (target_w - fit_w) // 2
+            y0 = (target_h - fit_h) // 2
+            frame_canvas[y0 : y0 + fit_h, x0 : x0 + fit_w] = resized
+
+            display_frame = cv2.copyMakeBorder(
+                frame_canvas,
+                STATUS_BAR_HEIGHT,
+                0,
+                0,
+                0,
+                cv2.BORDER_CONSTANT,
+                value=(0, 0, 0),
+            )
+
+            status = f"{args.host}:{args.port}{args.path} | {fps:.1f} FPS | scale {display_scale:.2f} | q quit"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.50
+            thickness = 1
+            status = fit_status_text(status, target_w - 20, font, font_scale, thickness)
             cv2.putText(
-                frame,
-                f"{stream_url} | {fps:.1f} FPS | scale {display_scale:.2f} | q quit",
+                display_frame,
+                status,
                 (10, 24),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
+                font,
+                font_scale,
                 (0, 255, 0),
-                2,
+                thickness,
                 cv2.LINE_AA,
             )
-            cv2.imshow(window_name, frame)
+            cv2.imshow(window_name, display_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
