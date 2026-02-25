@@ -43,6 +43,12 @@ def main() -> None:
     ap.add_argument("--frame-width", type=int, default=640, help="Capture width (default: 640)")
     ap.add_argument("--frame-height", type=int, default=360, help="Capture height (default: 360)")
     ap.add_argument("--send-ms", type=int, default=20, help="Packet send period in ms (default: 20)")
+    ap.add_argument(
+        "--hold-ms",
+        type=int,
+        default=2000,
+        help="Hold last valid packet this many ms when both hands are lost (default: 2000)",
+    )
     ap.add_argument("--connect-timeout", type=float, default=1.0, help="TCP connect timeout seconds")
     ap.add_argument("--no-gui", action="store_true", help="Run without cv2.imshow")
     ap.add_argument("--self-test", action="store_true", help="Load model and exit")
@@ -77,6 +83,8 @@ def main() -> None:
     last_connect_log = 0.0
     last_send = 0.0
     last_print = 0.0
+    last_valid_packet = "00000000"
+    last_valid_packet_ts = None
 
     try:
         while True:
@@ -112,8 +120,10 @@ def main() -> None:
 
             width_ratio = 0.0
             angle_out = last_angle_out
+            tracking_valid = False
 
             if "Left" in centers_by_label and "Right" in centers_by_label:
+                tracking_valid = True
                 missing_frames = 0
                 left_c = centers_by_label["Left"][1]
                 right_c = centers_by_label["Right"][1]
@@ -156,9 +166,22 @@ def main() -> None:
                 width_ratio = 0.0
                 angle_out = last_angle_out
 
-            packet = width_angle_to_packet(width_ratio, angle_out)
-
             now = time.time()
+            raw_packet = width_angle_to_packet(width_ratio, angle_out)
+            hold_active = False
+            if tracking_valid:
+                packet = raw_packet
+                last_valid_packet = raw_packet
+                last_valid_packet_ts = now
+            elif (
+                last_valid_packet_ts is not None
+                and (now - last_valid_packet_ts) * 1000.0 <= args.hold_ms
+            ):
+                packet = last_valid_packet
+                hold_active = True
+            else:
+                packet = raw_packet
+
             if sock is None and (now - last_connect_try) >= 1.0:
                 last_connect_try = now
                 sock = connect_tcp(args.host, args.port, args.connect_timeout)
@@ -183,16 +206,18 @@ def main() -> None:
             if args.no_gui:
                 if (now - last_print) >= 0.1:
                     status = "CONNECTED" if sock is not None else "DISCONNECTED"
+                    mode = "TRACK" if tracking_valid else ("HOLD" if hold_active else "BRAKE")
                     print(
-                        f"status={status} width={width_ratio:.2f} angle={angle_out:.1f} packet={packet}"
+                        f"status={status} mode={mode} width={width_ratio:.2f} angle={angle_out:.1f} packet={packet}"
                     )
                     last_print = now
                 continue
 
             status = "CONNECTED" if sock is not None else "DISCONNECTED"
+            mode = "TRACK" if tracking_valid else ("HOLD" if hold_active else "BRAKE")
             cv2.putText(
                 frame,
-                f"w {width_ratio:.2f}x | deg {angle_out:.1f} | pkt {packet}",
+                f"w {width_ratio:.2f}x | deg {angle_out:.1f} | pkt {packet} | {mode}",
                 (10, 32),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.75,

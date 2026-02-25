@@ -10,15 +10,19 @@ static const int ESP32_UART2_RX = 14;
 static const int ESP32_UART2_TX = 15;
 
 static const size_t PACKET_LEN = 8;  // RL + SSS + RR + SSS (ASCII digits)
+static const bool LOG_PACKETS = true;
+static const unsigned long LOG_PACKET_EVERY_MS = 200;
 
 WiFiServer server(TCP_PORT);
 WiFiClient client;
 
 char packet_buf[PACKET_LEN];
 size_t packet_pos = 0;
+unsigned long lastPacketLogMs = 0;
 
 void connect_wifi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
   WiFi.begin(ssid, password);
@@ -56,9 +60,13 @@ void handle_byte(uint8_t b) {
     Serial2.write((uint8_t*)packet_buf, PACKET_LEN);
     Serial2.write('\n');
 
-    Serial.print("FWD ");
-    for (size_t i = 0; i < PACKET_LEN; ++i) Serial.print(packet_buf[i]);
-    Serial.println();
+    unsigned long now = millis();
+    if (LOG_PACKETS && (now - lastPacketLogMs >= LOG_PACKET_EVERY_MS)) {
+      Serial.print("FWD ");
+      for (size_t i = 0; i < PACKET_LEN; ++i) Serial.print(packet_buf[i]);
+      Serial.println();
+      lastPacketLogMs = now;
+    }
 
     packet_pos = 0;
   }

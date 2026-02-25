@@ -2,8 +2,10 @@
 // packet = RL + SSS + RR + SSS
 // Example: 11800110
 
-static const unsigned long PACKET_TIMEOUT_MS = 250;
+static const unsigned long PACKET_TIMEOUT_MS = 1000;
 static const size_t PACKET_LEN = 8;
+static const bool LOG_PACKETS = true;
+static const unsigned long LOG_PACKET_EVERY_MS = 200;
 
 // Pins from hardware.MD
 static const uint8_t LEFT_PWM_PIN = 3;
@@ -15,6 +17,7 @@ static const uint8_t RIGHT_FWD_PIN = 24;
 static const uint8_t RIGHT_REV_PIN = 25;
 
 unsigned long lastPacketMs = 0;
+unsigned long lastPacketLogMs = 0;
 char packetBuf[PACKET_LEN];
 size_t packetPos = 0;
 
@@ -59,14 +62,18 @@ void applyPacket(const char* pkt) {
   applyWheel(LEFT_PWM_PIN, LEFT_FWD_PIN, LEFT_REV_PIN, leftReverse, leftSpeed);
   applyWheel(RIGHT_PWM_PIN, RIGHT_FWD_PIN, RIGHT_REV_PIN, rightReverse, rightSpeed);
 
-  Serial.print("APPLY ");
-  for (size_t i = 0; i < PACKET_LEN; ++i) Serial.print(pkt[i]);
-  Serial.print(" | L ");
-  Serial.print(leftReverse ? "REV " : "FWD ");
-  Serial.print(leftSpeed);
-  Serial.print(" | R ");
-  Serial.print(rightReverse ? "REV " : "FWD ");
-  Serial.println(rightSpeed);
+  unsigned long now = millis();
+  if (LOG_PACKETS && (now - lastPacketLogMs >= LOG_PACKET_EVERY_MS)) {
+    Serial.print("APPLY ");
+    for (size_t i = 0; i < PACKET_LEN; ++i) Serial.print(pkt[i]);
+    Serial.print(" | L ");
+    Serial.print(leftReverse ? "REV " : "FWD ");
+    Serial.print(leftSpeed);
+    Serial.print(" | R ");
+    Serial.print(rightReverse ? "REV " : "FWD ");
+    Serial.println(rightSpeed);
+    lastPacketLogMs = now;
+  }
 }
 
 void setup() {
