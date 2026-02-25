@@ -7,21 +7,18 @@ import cv2
 import numpy as np
 
 
-DEFAULT_HOST = "172.20.10.5"  # ESP32-CAM IP (same default family as gesture_to_esp.py)
-DEFAULT_PORT = 12345          # Same port as wifi_connect.ino / camera_stream.ino
+DEFAULT_HOST = "172.20.10.5"
+DEFAULT_PORT = 12345
 DEFAULT_BIND = "0.0.0.0"
 MIN_DISPLAY_SCALE = 0.25
 MAX_DISPLAY_SCALE = 1.0
 STATUS_BAR_HEIGHT = 36
 DEFAULT_WINDOW_WIDTH = 960
 DEFAULT_WINDOW_HEIGHT = 540
-<<<<<<< HEAD
 PROTO_MAGIC = b"UF"
 HEADER_FMT = ">2sIHHH"  # magic, frame_id, chunk_idx, total_chunks, payload_len
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 STATS_INTERVAL_S = 1.0
-=======
->>>>>>> 905f124f0329361c2432af62021b5a33ac966d74
 
 
 def fit_status_text(text: str, max_width: int, font, font_scale: float, thickness: int) -> str:
@@ -60,29 +57,6 @@ def decode_complete_frame(frame_entry: dict) -> np.ndarray | None:
     return cv2.imdecode(frame_buf, cv2.IMREAD_COLOR)
 
 
-def fit_status_text(text: str, max_width: int, font, font_scale: float, thickness: int) -> str:
-    if max_width <= 20:
-        return ""
-    rendered, _ = cv2.getTextSize(text, font, font_scale, thickness)
-    if rendered[0] <= max_width:
-        return text
-
-    ellipsis = "..."
-    lo = 0
-    hi = len(text)
-    best = ellipsis
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        candidate = text[:mid] + ellipsis
-        size, _ = cv2.getTextSize(candidate, font, font_scale, thickness)
-        if size[0] <= max_width:
-            best = candidate
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    return best
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default=DEFAULT_HOST, help=f"ESP32-CAM IP (default: {DEFAULT_HOST})")
@@ -92,18 +66,6 @@ def main() -> None:
     parser.add_argument("--target-fps", type=float, default=15.0, help="Viewer adaptation target FPS (default: 15.0)")
     parser.add_argument("--hello-ms", type=int, default=500, help="HELLO/KEEPALIVE period in ms (default: 500)")
     parser.add_argument("--stale-ms", type=int, default=800, help="Drop incomplete frame buffers older than this (default: 800)")
-    parser.add_argument(
-        "--window-width",
-        type=int,
-        default=DEFAULT_WINDOW_WIDTH,
-        help=f"Display width in pixels (default: {DEFAULT_WINDOW_WIDTH})",
-    )
-    parser.add_argument(
-        "--window-height",
-        type=int,
-        default=DEFAULT_WINDOW_HEIGHT,
-        help=f"Display height in pixels (default: {DEFAULT_WINDOW_HEIGHT})",
-    )
     parser.add_argument(
         "--window-width",
         type=int,
@@ -138,7 +100,6 @@ def main() -> None:
     latest_frame_id = -1
 
     display_scale = 1.0
-<<<<<<< HEAD
     rx_fps = 0.0
     decoded_frames = 0
     decoded_frames_prev = 0
@@ -153,25 +114,6 @@ def main() -> None:
 
     try:
         while True:
-=======
-    target_w = max(args.window_width, 320)
-    target_h = max(args.window_height, 240)
-    cv2.resizeWindow(window_name, target_w, target_h + STATUS_BAR_HEIGHT)
-
-    try:
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                print("Stream read failed; reconnecting...")
-                cap.release()
-                time.sleep(max(args.reconnect_ms, 0) / 1000.0)
-                cap = open_stream(stream_url)
-                if cap is None:
-                    continue
-                continue
-
-            frame_counter += 1
->>>>>>> 905f124f0329361c2432af62021b5a33ac966d74
             now = time.time()
 
             if (now - last_hello_ts) >= hello_interval:
@@ -268,7 +210,6 @@ def main() -> None:
                         interpolation=cv2.INTER_AREA,
                     )
 
-<<<<<<< HEAD
                 src_h, src_w = frame.shape[:2]
                 fit_scale = min(target_w / max(src_w, 1), target_h / max(src_h, 1))
                 fit_w = max(1, int(src_w * fit_scale))
@@ -279,18 +220,6 @@ def main() -> None:
                 x0 = (target_w - fit_w) // 2
                 y0 = (target_h - fit_h) // 2
                 frame_canvas[y0 : y0 + fit_h, x0 : x0 + fit_w] = resized
-=======
-            src_h, src_w = frame.shape[:2]
-            fit_scale = min(target_w / max(src_w, 1), target_h / max(src_h, 1))
-            fit_w = max(1, int(src_w * fit_scale))
-            fit_h = max(1, int(src_h * fit_scale))
-            resized = cv2.resize(frame, (fit_w, fit_h), interpolation=cv2.INTER_LINEAR)
-
-            frame_canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-            x0 = (target_w - fit_w) // 2
-            y0 = (target_h - fit_h) // 2
-            frame_canvas[y0 : y0 + fit_h, x0 : x0 + fit_w] = resized
->>>>>>> 905f124f0329361c2432af62021b5a33ac966d74
 
             display_frame = cv2.copyMakeBorder(
                 frame_canvas,
@@ -302,15 +231,11 @@ def main() -> None:
                 value=(0, 0, 0),
             )
 
-<<<<<<< HEAD
             link_age_ms = int((now - last_rx_ts) * 1000.0) if last_rx_ts > 0 else -1
             status = (
                 f"udp {args.host}:{args.port} | rx {rx_fps:.1f} fps | scale {display_scale:.2f} | "
                 f"drop {dropped_frames} bad {bad_packets} | age {link_age_ms}ms | q quit"
             )
-=======
-            status = f"{args.host}:{args.port}{args.path} | {fps:.1f} FPS | scale {display_scale:.2f} | q quit"
->>>>>>> 905f124f0329361c2432af62021b5a33ac966d74
             font = cv2.FONT_HERSHEY_SIMPLEX
             font_scale = 0.50
             thickness = 1
@@ -325,10 +250,7 @@ def main() -> None:
                 thickness,
                 cv2.LINE_AA,
             )
-<<<<<<< HEAD
 
-=======
->>>>>>> 905f124f0329361c2432af62021b5a33ac966d74
             cv2.imshow(window_name, display_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
