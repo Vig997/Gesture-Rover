@@ -14,6 +14,10 @@ def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def wrap_deg_180(angle_deg: float) -> float:
+    return ((float(angle_deg) + 180.0) % 360.0) - 180.0
+
+
 def normalize_speed(width_x: float) -> float:
     limited = clamp(width_x, 0.0, MAX_WIDTH_SPEED)
     if limited < MIN_WIDTH_BRAKE:
@@ -40,9 +44,10 @@ def signed_to_wheel(value: float) -> WheelState:
     return WheelState(reverse=reverse, speed=speed)
 
 
-def width_angle_to_wheels(width_x: float, angle_deg: float) -> tuple[WheelState, WheelState]:
+def width_angle_to_wheels(width_x: float, angle_deg: float, reversing: bool = False) -> tuple[WheelState, WheelState]:
     speed_norm = normalize_speed(width_x)
-    turn_norm = normalize_turn(angle_deg)
+    drive_angle_deg = wrap_deg_180(angle_deg + 180.0) if reversing else angle_deg
+    turn_norm = normalize_turn(drive_angle_deg)
 
     turn_scale = PIVOT_TURN_FLOOR + (1.0 - PIVOT_TURN_FLOOR) * speed_norm
     turn_component = turn_norm * turn_scale
@@ -52,6 +57,10 @@ def width_angle_to_wheels(width_x: float, angle_deg: float) -> tuple[WheelState,
     # positive angle (right turn) -> left wheel faster
     left_signed = speed_norm + turn_component
     right_signed = speed_norm - turn_component
+
+    if reversing:
+        left_signed = -left_signed
+        right_signed = -right_signed
 
     # Preserve left/right turn ratio when one side would otherwise clip.
     # Scale both channels together so max magnitude is exactly 1.0.
@@ -67,8 +76,8 @@ def build_packet(left: WheelState, right: WheelState) -> str:
     return f"{left.reverse}{left.speed:03d}{right.reverse}{right.speed:03d}"
 
 
-def width_angle_to_packet(width_x: float, angle_deg: float) -> str:
-    left, right = width_angle_to_wheels(width_x, angle_deg)
+def width_angle_to_packet(width_x: float, angle_deg: float, reversing: bool = False) -> str:
+    left, right = width_angle_to_wheels(width_x, angle_deg, reversing=reversing)
     return build_packet(left, right)
 
 
@@ -76,9 +85,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--width", type=float, required=True, help="CV width scalar (0..2-ish)")
     ap.add_argument("--angle", type=float, required=True, help="Steering angle in degrees (-180..180)")
+    ap.add_argument("--reversing", action="store_true", help="Flip both wheel directions for reverse drive mode")
     args = ap.parse_args()
 
-    packet = width_angle_to_packet(args.width, args.angle)
+    packet = width_angle_to_packet(args.width, args.angle, reversing=args.reversing)
     print(packet)
 
 

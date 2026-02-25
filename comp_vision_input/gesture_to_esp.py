@@ -15,6 +15,7 @@ from steering_wheel_tracker import (
     draw_hand,
     ensure_model,
     grip_point_px,
+    hand_orientation_upright,
     wrap_deg_180,
 )
 
@@ -77,6 +78,8 @@ def main() -> None:
     missing_frames = 0
     last_angle_out = 0.0
     last_angle_unwrapped = 0.0
+    ori_votes = {"Left": deque(maxlen=9), "Right": deque(maxlen=9)}
+    last_ori = {"Left": "unknown", "Right": "unknown"}
 
     sock = None
     last_connect_try = 0.0
@@ -121,6 +124,25 @@ def main() -> None:
             width_ratio = 0.0
             angle_out = last_angle_out
             tracking_valid = False
+            reversing = False
+
+            for label in ("Left", "Right"):
+                if label not in centers_by_label:
+                    continue
+                _, _, lms = centers_by_label[label]
+                ori, conf = hand_orientation_upright(lms)
+                if ori == "upright" and conf >= 0.35:
+                    ori_votes[label].append(1)
+                elif ori == "upside_down" and conf >= 0.35:
+                    ori_votes[label].append(-1)
+                else:
+                    ori_votes[label].append(0)
+
+                vote_sum = sum(ori_votes[label])
+                if abs(vote_sum) >= 2:
+                    last_ori[label] = "upright" if vote_sum > 0 else "upside_down"
+                elif len(ori_votes[label]) == ori_votes[label].maxlen:
+                    last_ori[label] = "unknown"
 
             if "Left" in centers_by_label and "Right" in centers_by_label:
                 tracking_valid = True
@@ -151,6 +173,11 @@ def main() -> None:
                 last_angle_unwrapped = filtered
                 angle_out = wrap_deg_180(filtered)
                 last_angle_out = angle_out
+                reversing = (
+                    abs(angle_out) > 160.0
+                    and last_ori["Left"] == "upright"
+                    and last_ori["Right"] == "upright"
+                )
 
                 if not args.no_gui:
                     cv2.line(frame, left_c, right_c, (0, 255, 0), 4, cv2.LINE_AA)
@@ -163,11 +190,15 @@ def main() -> None:
                     dist_filter.clear()
                     prev_raw = None
                     unwrap_offset = 0.0
+                    ori_votes["Left"].clear()
+                    ori_votes["Right"].clear()
+                    last_ori["Left"] = "unknown"
+                    last_ori["Right"] = "unknown"
                 width_ratio = 0.0
                 angle_out = last_angle_out
 
             now = time.time()
-            raw_packet = width_angle_to_packet(width_ratio, angle_out)
+            raw_packet = width_angle_to_packet(width_ratio, angle_out, reversing=reversing)
             hold_active = False
             if tracking_valid:
                 packet = raw_packet
@@ -208,7 +239,7 @@ def main() -> None:
                     status = "CONNECTED" if sock is not None else "DISCONNECTED"
                     mode = "TRACK" if tracking_valid else ("HOLD" if hold_active else "BRAKE")
                     print(
-                        f"status={status} mode={mode} width={width_ratio:.2f} angle={angle_out:.1f} packet={packet}"
+                        f"status={status} mode={mode} rev={reversing} width={width_ratio:.2f} angle={angle_out:.1f} packet={packet}"
                     )
                     last_print = now
                 continue
@@ -217,7 +248,7 @@ def main() -> None:
             mode = "TRACK" if tracking_valid else ("HOLD" if hold_active else "BRAKE")
             cv2.putText(
                 frame,
-                f"w {width_ratio:.2f}x | deg {angle_out:.1f} | pkt {packet} | {mode}",
+                f"w {width_ratio:.2f}x | deg {angle_out:.1f} | rev {reversing} | pkt {packet} | {mode}",
                 (10, 32),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.75,

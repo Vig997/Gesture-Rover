@@ -426,8 +426,8 @@ def main() -> None:
 
         packet_angle = float(last_angle_out) if angle_out is None else float(angle_out)
         packet_width = dist_ratio if ("Left" in centers_by_label and "Right" in centers_by_label) else 0.0
-        left_w, right_w = width_angle_to_wheels(packet_width, packet_angle)
-        packet = width_angle_to_packet(packet_width, packet_angle)
+        left_w, right_w = width_angle_to_wheels(packet_width, packet_angle, reversing=reversing)
+        packet = width_angle_to_packet(packet_width, packet_angle, reversing=reversing)
         motion_text = describe_motion(left_w, right_w)
         wheel_text = wheel_detail(left_w, right_w)
 
