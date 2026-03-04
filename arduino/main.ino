@@ -18,8 +18,8 @@ struct WheelPins {
 static const WheelPins F_RIGHT = {3, 22, 23};
 static const WheelPins B_RIGHT = {2, 24, 25};
 // Left side wheels
-static const WheelPins F_LEFT = {4, 32, 33};
-static const WheelPins B_LEFT = {5, 30, 31};
+static const WheelPins F_LEFT = {5, 30, 31};
+static const WheelPins B_LEFT = {4, 32, 33};
 
 unsigned long lastPacketMs = 0;
 unsigned long lastPacketLogMs = 0;
