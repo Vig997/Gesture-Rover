@@ -2,6 +2,8 @@
 
 Computer-vision steering prototype for a differential-drive rover.
 
+![Wavelink Rover Poster](./Gesture%20Rover.png)
+
 ## What It Does
 
 - Tracks two hands as a steering wheel using MediaPipe.
