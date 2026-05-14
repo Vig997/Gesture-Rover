@@ -2,7 +2,9 @@
 
 Computer-vision steering prototype for a differential-drive rover.
 
-![Wavelink Rover Poster](./Gesture%20Rover.png)
+<p align="center">
+  <img src="./Gesture%20Rover.png" width="400"/>
+</p>
 
 ## What It Does
 
