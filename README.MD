@@ -3,7 +3,7 @@
 Computer-vision steering prototype for a differential-drive rover.
 
 <p align="center">
-  <img src="./Gesture%20Rover.png" width="400"/>
+  <img src="./Gesture%20Rover.png" width="500"/>
 </p>
 
 ## What It Does
